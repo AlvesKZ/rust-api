@@ -3,7 +3,8 @@ use actix_web::{
         scope, 
         Json,
         Data,
-        ServiceConfig
+        ServiceConfig,
+        Query
     },
     get,
     post,
@@ -13,7 +14,7 @@ use actix_web::{
 
 use serde_json::json;
 
-use crate::{AppState, schema::CreateTaskSchema, model::TaskModel};
+use crate::{AppState, model::TaskModel, schema::{CreateTaskSchema, FilterOptions}};
 
 #[get("/healthchecker")]
 async fn health_checker() -> impl Responder {
@@ -25,7 +26,7 @@ async fn health_checker() -> impl Responder {
     }))
 }
 
-#[post("/task")]
+#[post("/tasks")]
 async fn create_task(
     body: Json<CreateTaskSchema>,
     data: Data<AppState>
@@ -45,8 +46,8 @@ async fn create_task(
                 "data": task
             }))
         }
-        Err(err) => {
-            eprintln!("Database error: {:?}", err);  
+        Err(error) => {
+            eprintln!("Database error: {:?}", error);  
             HttpResponse::InternalServerError().json(json!({
                 "status": "error",
                 "message": "Failed to create task"
@@ -55,10 +56,47 @@ async fn create_task(
     }
 }
 
+#[get("/tasks")]
+async fn get_all_tasks(
+    opts: Query<FilterOptions>,  
+    data: Data<AppState>
+) -> impl Responder {
+    let limit = opts.limit.unwrap_or(10);
+    let offset = (opts.page.unwrap_or(1) - 1) * limit; 
+
+    match sqlx::query_as!(
+        TaskModel,
+        "SELECT * FROM tasks ORDER BY id LIMIT $1 OFFSET $2",
+        limit as i32,
+        offset as i32
+    )
+    .fetch_all(&data.db)
+    .await 
+    {
+        Ok(tasks) => {
+            let json_response = json!({
+                "status": "success", 
+                "result": tasks.len(),
+                "tasks": tasks
+            });
+
+            HttpResponse::Ok().json(json_response)  
+        }
+        Err(error) => {  
+            eprintln!("Database error: {:?}", error);  
+            HttpResponse::InternalServerError().json(json!({
+                "status": "error",
+                "message": "Failed to fetch tasks" 
+            }))
+        }
+    }
+}
+
 pub fn config(conf: &mut ServiceConfig) {
     let scope = scope("/api")
                     .service(health_checker)
-                    .service(create_task);
+                    .service(create_task)
+                    .service(get_all_tasks);  
 
     conf.service(scope);
 }
