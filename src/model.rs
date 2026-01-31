@@ -9,4 +9,5 @@ pub struct TaskModel {
     pub title: String,
     pub content: String,
     pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
