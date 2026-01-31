@@ -2,13 +2,11 @@ mod schema;
 mod model;
 mod services;
 
-use std::env;
-
 use actix_web::{web, App, HttpServer};
 
 use dotenv::dotenv;
 use sqlx::{
-    Pool, Postgres, pool, postgres::PgPoolOptions
+    Pool, Postgres, postgres::PgPoolOptions
 };
 
 pub struct AppState {
