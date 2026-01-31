@@ -1,5 +1,5 @@
 use actix_web::{
-    HttpResponse, Responder, get, post, web::{
+    HttpResponse, Responder, get, post, delete, web::{
         Data, Json, Path, Query, ServiceConfig, scope
     }
 };
@@ -118,12 +118,41 @@ async fn get_task_by_id(
     }
 }
 
+#[delete("/tasks/{id}")]
+async fn delete_task_by_id(
+    path: Path<Uuid>,
+    data: Data<AppState>
+) -> impl Responder {
+    let task_id = path.into_inner();
+
+    match sqlx::query_as!(
+        TaskModel,
+        "DELETE FROM tasks WHERE id = $1", 
+        task_id
+    ) 
+    .execute(&data.db)
+    .await 
+    {
+        Ok(_) => {
+            HttpResponse::NoContent().finish()  
+        }
+        Err(error) => {  
+            eprintln!("Database error: {:?}", error);  
+            HttpResponse::InternalServerError().json(json!({
+                "status": "error",
+                "message": "Failed to delete task" 
+            }))
+        }
+    }
+}
+
 pub fn config(conf: &mut ServiceConfig) {
     let scope = scope("/api")
                     .service(health_checker)
                     .service(create_task)
                     .service(get_all_tasks)
-                    .service(get_task_by_id); 
-
+                    .service(get_task_by_id)
+                    .service(delete_task_by_id); 
+                    
     conf.service(scope);
 }
